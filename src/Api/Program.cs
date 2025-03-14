@@ -1,4 +1,7 @@
 
+using Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
 namespace Api;
 
 public class Program
@@ -7,16 +10,31 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
-
         builder.Services.AddControllers();
-        // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+        builder.Services.AddDbContext<ApplicationContext>(options =>
+        {
+            var connectionString = Environment.GetEnvironmentVariable("PostgreSqlConnectionString");
+            var logger = LoggerFactory.Create(l => l.AddConsole());
+
+            options
+                .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), options =>
+                {
+                    options.EnableRetryOnFailure(
+                        3,
+                        TimeSpan.FromSeconds(5),
+                        default);
+
+                    options.MigrationsHistoryTable("ef_migrations_hostory");
+                })
+                .UseLoggerFactory(logger)
+                // Exibe todos os valores dos parâmetros no console, isso deve ser utilizado apenas para desenvolvimento
+                .EnableSensitiveDataLogging();
+        });
 
         var app = builder.Build();
 
-        // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -24,12 +42,8 @@ public class Program
         }
 
         app.UseHttpsRedirection();
-
         app.UseAuthorization();
-
-
         app.MapControllers();
-
         app.Run();
     }
 }
